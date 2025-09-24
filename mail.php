@@ -1,56 +1,54 @@
 <?php
-if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    // proceed with sending email
-} else {
-    echo "Invalid email format";
-}
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+use PHPMailer\PHPMailer\Exception;
 
-$to = $email;
-$subject = "Welcome to ICS 2.2! Account Verification";
-$message = "
-<html>
-<head>
-<title>Account Verification</title>
-</head>
-<body>
-<p>Hello $username,</p>
-<p>You requested an account on ICS 2.2.</p>
-<p>In order to use this account you need to <a href='http://yourdomain.com/verify.php?email=$email'>Click Here</a> to complete the registration process.</p>
-<p>Regards,<br>Systems Admin<br>ICS 2.2</p>
-</body>
-</html>
-";
-
-$headers = "MIME-Version: 1.0" . "\r\n";
-$headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-$headers .= "From: ICS 2.2 <noreply@yourdomain.com>" . "\r\n";
-
-mail($to, $subject, $message, $headers);
+require 'vendor/autoload.php';    
+require_once 'conf.php'; 
 
 
-// db connection
-$conn = new mysqli("localhost", "root", "", "taskapp");
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $userEmail = trim($_POST['email']);
+    $userName  = trim($_POST['name']);
 
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-
-// fetch users in ascending order
-$sql = "SELECT username FROM users ORDER BY username ASC";
-$result = $conn->query($sql);
-
-// display numbered list
-if ($result->num_rows > 0) {
-    $count = 1;
-    echo "<ol>";
-    while($row = $result->fetch_assoc()) {
-        echo "<li>" . htmlspecialchars($row["username"]) . "</li>";
-        $count++;
+    if (!filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+        die("Invalid email address.");
     }
-    echo "</ol>";
-} else {
-    echo "No users found.";
-}
-$conn->close();
-?>
 
+    $mail = new PHPMailer(true);
+
+    try {
+        $mail->SMTPDebug = SMTP::DEBUG_OFF;
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'david.otieno@strathmore.edu';   
+        $mail->Password   = 'Daxfaxi6';    
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Port       = 465;
+
+        $mail->setFrom('david.otieno@strathmore.edu', 'Dadaeb.co');
+        $mail->addAddress($userEmail, $userName);
+
+        $mail->isHTML(true);
+        $mail->Subject = "Welcome to Dadaeb.co, $userName!";
+        $mail->Body    = "Hello <b>$userName</b>,<br><br>
+                          Welcome to <b>Dadaeb.co</b>! 
+                          Your signup was successful.";
+
+        $mail->send();
+
+        // Save to DB
+        $stmt = $conn->prepare("INSERT INTO users (name, email) VALUES (:name, :email)");
+        $stmt->execute([
+            ':name'  => $userName,
+            ':email' => $userEmail
+        ]);
+
+        header("Location: index.php?success=1");
+        exit;
+    } catch (Exception $e) {
+        echo "Message could not be sent. Mailer Error: {$mail->ErrorInfo}";
+    }
+}
+?>
